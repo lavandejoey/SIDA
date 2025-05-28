@@ -159,6 +159,9 @@ deepspeed --master_port=24999 train_SIDA.py \
 
 Note: The paper's results were generated using SIDA-7B and SIDA-13B models. To reproduce the experimental results, please use these specific models.
 
+### Test
+run `test.sh` to evaluate the model on the test set.
+
 ### Inference
 To chat with SIDA,  we recommend using SIDA-13B for more accurate segmentation results. To view explanation results, please use SIDA-13B-description.
 
