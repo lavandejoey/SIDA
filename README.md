@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 ## Dataset Access
 
-We provide two methods to access the SID_Set dataset:
+We provide two methods to access the **SID_Set dataset**:
 
 1. Public Access via Hugging Face
 The full training set and validation set are publicly available on [Hugging Face](https://huggingface.co/datasets/saberzl/SID_Set). To load SID_Set, follow the instructions in the [Hugging Face Datasets documentation](https://huggingface.co/docs/datasets/index). You can also explore visual examples directly through the dataset viewer on the platform.
@@ -70,9 +70,9 @@ Alternatively, you can download the train.zip and validation.zip files for SID_S
 
 For the test set, we provide only a single test.zip file to minimize the risk of data contamination (e.g., from foundation models crawling the test set for training). You can download it [here](https://drive.google.com/file/d/1_ivsEV5e14efuv93tJgXjWOondYnEC2G/view?usp=sharing).
 
-For SID_Set_description datast:
+For **SID_Set_description datast**:
 
-you can download the text_label_images.zip  for SID_Set_description from [Google Drive](https://drive.google.com/file/d/1tGIe1mWvdRFRqBeY4vADY3y90Y-kJEGZ/view).
+You can download the text_label_images.zip  for SID_Set_description from [Google Drive](https://drive.google.com/file/d/1tGIe1mWvdRFRqBeY4vADY3y90Y-kJEGZ/view).
 
 ## Training
 ### Training data
