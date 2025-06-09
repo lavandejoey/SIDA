@@ -70,10 +70,11 @@ Alternatively, you can download the train.zip and validation.zip files for SID_S
 
 For the test set, we provide only a single test.zip file to minimize the risk of data contamination (e.g., from foundation models crawling the test set for training). You can download it [here](https://drive.google.com/file/d/1_ivsEV5e14efuv93tJgXjWOondYnEC2G/view?usp=sharing).
 
-For **SID_Set_description datast**:
+For **SID_Set_description dataset**:
 
-You can download the text_label_images.zip  for SID_Set_description from [Google Drive](https://drive.google.com/file/d/1tGIe1mWvdRFRqBeY4vADY3y90Y-kJEGZ/view).
+1. You can download the `text_label_images.zip`  for SID_Set_description from [Google Drive](https://drive.google.com/file/d/1tGIe1mWvdRFRqBeY4vADY3y90Y-kJEGZ/view).
 
+2. You can download SID_Set_description from [Hugging Face](https://huggingface.co/datasets/saberzl/SID_Set_description).
 ## Training
 ### Training data
 To train SIDA, we use the SID_Set dataset. For access to SID_Set, please refer to the Dataset Access section. If you download SID_Set through Google Drive, please organize the files as follows:
