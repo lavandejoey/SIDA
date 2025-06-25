@@ -50,7 +50,7 @@ Compared with state-of-the-art deepfake detection models on SID-Set and other be
 
 ## Experiment
 
-<p align="center"> <img src="images/experiment.png" width="100%"> </p>
+<p align="center"> <img src="images/experiment_revised.png" width="100%"> </p>
 
 ## Installation
 
