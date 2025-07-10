@@ -13,6 +13,7 @@ from .llava.model.language_model.llava_llama import (LlavaLlamaForCausalLM,
 from .segment_anything import build_sam_vit_h
 
 from torchviz import make_dot
+import itertools 
 
 import deepspeed
 
@@ -211,7 +212,13 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
             ],
                 dim=1,
             )
-        
+        seg_token_mask = (input_ids[:, 1:] == self.seg_token_idx)
+
+        seg_token_mask = torch.cat([
+            torch.zeros((seg_token_mask.shape[0], 255), dtype=torch.bool, device=input_ids.device),
+            seg_token_mask,
+            torch.zeros((seg_token_mask.shape[0], 1),   dtype=torch.bool, device=input_ids.device)], dim=1)
+      
         if inference:
             n_batch = 1
             length = input_ids.shape[0]
@@ -272,19 +279,6 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
         mask_dice_loss = 0
         num_masks = 0
         if (cls_labels == 2).any():
-            seg_token_mask = input_ids[:, 1:] == self.seg_token_idx
-            seg_token_mask = torch.cat(
-                [
-                    seg_token_mask,
-                    torch.zeros((seg_token_mask.shape[0], 1)).bool().cuda(),
-                ],
-                dim=1,
-            )
-            # hack for IMAGE_TOKEN_INDEX (we suppose that there is only one image, and it is in the front)
-            seg_token_mask = torch.cat(
-                [torch.zeros((seg_token_mask.shape[0], 255)).bool().cuda(), seg_token_mask],
-                dim=1,
-            )
             hidden_states = []
             hidden_states.append(self.model.text_hidden_fcs[0](output_hidden_states[-1]))
             last_hidden_state = torch.stack(hidden_states, dim=-1).sum(dim=-1)
@@ -386,8 +380,17 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
             mask_bce_loss = torch.tensor(0.0, device=cls_loss.device)
             mask_dice_loss = torch.tensor(0.0, device=cls_loss.device)
             mask_loss = torch.tensor(0.0, device=cls_loss.device)
+        if not inference and seg_token_mask.sum() == 0:  
+            dummy = torch.zeros([], device=cls_loss.device) 
+            for p in itertools.chain(
+                self.model.visual_model.mask_decoder.parameters(),
+                self.model.text_hidden_fcs.parameters(),
+                self.model.sida_fc1.parameters(),
+                self.model.attention_layer.parameters()):
+                dummy = dummy + p.sum() * 0.0      
+            mask_loss = mask_loss + dummy 
+          
         loss = self.ce_loss_weight * ce_loss + self.mask_loss_weight * mask_loss + self.cls_loss_weight *cls_loss
-        #loss = self.ce_loss_weight * ce_loss
         return {
             "loss": loss,
             "ce_loss": ce_loss,
