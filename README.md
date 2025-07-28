@@ -204,8 +204,7 @@ Visual Inconsistencies:<lighting> The lighting on the tampered area does not mat
   author       = {Zhenglin Huang and Jinwei Hu and Xiangtai Li and Yiwei He and Xingyu Zhao and Bei Peng and Baoyuan Wu and Xiaowei Huang and Guangliang Cheng},
   title        = {{SIDA:} Social Media Image Deepfake Detection, Localization and Explanation
                   with Large Multimodal Model},
-  booktitle    = {{IEEE/CVF} Conference on Computer Vision and Pattern Recognition,
-                  {CVPR} 2025, Nashville, TN, USA, June 11-15, 2025},
+  booktitle    = {{IEEE/CVF} Conference on Computer Vision and Pattern Recognition,{CVPR} 2025},
   year         = {2025},
 }
 ```
