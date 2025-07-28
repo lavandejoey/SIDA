@@ -201,15 +201,7 @@ Visual Inconsistencies:<lighting> The lighting on the tampered area does not mat
 
 ```
 @inproceedings{DBLP:conf/cvpr/HuangHLH00W0C25,
-  author       = {Zhenglin Huang and
-                  Jinwei Hu and
-                  Xiangtai Li and
-                  Yiwei He and
-                  Xingyu Zhao and
-                  Bei Peng and
-                  Baoyuan Wu and
-                  Xiaowei Huang and
-                  Guangliang Cheng},
+  author       = {Zhenglin Huang and Jinwei Hu and Xiangtai Li and Yiwei He and Xingyu Zhao and Bei Peng and Baoyuan Wu and Xiaowei Huang and Guangliang Cheng},
   title        = {{SIDA:} Social Media Image Deepfake Detection, Localization and Explanation
                   with Large Multimodal Model},
   booktitle    = {{IEEE/CVF} Conference on Computer Vision and Pattern Recognition,
