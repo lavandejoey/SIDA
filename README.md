@@ -151,6 +151,17 @@ CUDA_VISIBLE_DEVICES="" python3 merge_lora_weights_and_save_hf_model.py \
 ### Training SIDA_description model
 You can run the `train_SIDA_description.sh` script to fine-tune SIDA-7B/13B using labeled data. Please download the 3K description dataset from the provided [link](https://drive.google.com/file/d/1tGIe1mWvdRFRqBeY4vADY3y90Y-kJEGZ/view?usp=sharing).
 
+```
+deepspeed --master_port=24999 train_SIDA_description.py \
+  --version="./ck/SIDA-7B" \
+  --dataset_dir='/path_to/text_label_images/' \
+  --vision_pretrained="./ck/sam_vit_h_4b8939.pth" \
+  --val_dataset="/path_to/text_label_images/"\
+  --batch_size=2 \
+  --exp_name="SIDA-7B-description" \
+  --epochs=5 \
+ --steps_per_epoch=100 \
+```
 ### Validation
 ```
 deepspeed --master_port=24999 train_SIDA.py \
