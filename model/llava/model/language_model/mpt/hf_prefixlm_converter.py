@@ -12,23 +12,66 @@ from types import MethodType
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+# ---- Universal HF imports (models) ----
 from transformers.models.bloom.modeling_bloom import (
-    BaseModelOutputWithPastAndCrossAttentions, BloomForCausalLM, BloomModel,
-    CausalLMOutputWithCrossAttentions, CrossEntropyLoss)
-from transformers.models.bloom.modeling_bloom import \
-    _expand_mask as _expand_mask_bloom
-from transformers.models.bloom.modeling_bloom import \
-    _make_causal_mask as _make_causal_mask_bloom
-from transformers.models.bloom.modeling_bloom import logging
+    BaseModelOutputWithPastAndCrossAttentions,
+    BloomForCausalLM, BloomModel,
+    CausalLMOutputWithCrossAttentions,
+    CrossEntropyLoss,
+)
 from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoForCausalLM
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM
 from transformers.models.gptj.modeling_gptj import GPTJForCausalLM
 from transformers.models.opt.modeling_opt import OPTForCausalLM
-from transformers.models.opt.modeling_opt import \
-    _expand_mask as _expand_mask_opt
-from transformers.models.opt.modeling_opt import \
-    _make_causal_mask as _make_causal_mask_opt
+
+# ---- Logging (fallback-safe) ----
+try:
+    # Some model files expose `logging` directly
+    from transformers.models.bloom.modeling_bloom import logging as _hf_logging
+except Exception:
+    # Fall back to the global Transformers logger
+    from transformers.utils import logging as _hf_logging
+logging = _hf_logging
+
+# ---- Mask utilities: old per-model vs. new shared utils ----
+# Prefer new shared utils if available; otherwise fall back to per-model.
+_expand_mask_common = _make_causal_mask_common = None
+try:
+    from transformers.modeling_attn_mask_utils import (
+        _expand_mask as _expand_mask_common,
+        _make_causal_mask as _make_causal_mask_common,
+    )
+except Exception:
+    pass  # not available on older Transformers
+
+# BLOOM helpers (aliases you can use everywhere in your code)
+try:
+    # Old path (≤ 4.30)
+    from transformers.models.bloom.modeling_bloom import (
+        _expand_mask as _expand_mask_bloom,
+        _make_causal_mask as _make_causal_mask_bloom,
+    )
+except Exception:
+    # New path (≥ 4.31)
+    if _expand_mask_common is None or _make_causal_mask_common is None:
+        raise
+    _expand_mask_bloom = _expand_mask_common
+    _make_causal_mask_bloom = _make_causal_mask_common
+
+# OPT helpers (aliases you can use everywhere in your code)
+try:
+    # Old path (≤ 4.30)
+    from transformers.models.opt.modeling_opt import (
+        _expand_mask as _expand_mask_opt,
+        _make_causal_mask as _make_causal_mask_opt,
+    )
+except Exception:
+    # New path (≥ 4.31)
+    if _expand_mask_common is None or _make_causal_mask_common is None:
+        raise
+    _expand_mask_opt = _expand_mask_common
+    _make_causal_mask_opt = _make_causal_mask_common
 
 logger = logging.get_logger(__name__)
 _SUPPORTED_GPT_MODELS = (

@@ -99,6 +99,11 @@ def parse_args(args):
         type=str,
         choices=["llava_v1", "llava_llama_2"],
     )
+    parser.add_argument("--binary", action="store_true", default=False)
+    parser.add_argument("--real_glob", type=str, default=None,
+                        help='Recursive glob for REAL images, e.g. "/data/0_real/**/*.png"')
+    parser.add_argument("--fake_glob", type=str, default=None,
+                        help='Recursive glob for FAKE images, e.g. "/data/1_fake/**/*.png"')
 
     return parser.parse_args(args)
 def main(args):
@@ -155,13 +160,14 @@ def main(args):
     model.config.eos_token_id = tokenizer.eos_token_id
     model.config.bos_token_id = tokenizer.bos_token_id
     model.config.pad_token_id = tokenizer.pad_token_id
-    print("\nChecking specific components:")
-    for component in [ "cls_head", "sida_fc1", "attention_layer", "text_hidden_fcs"]:
-        matching_params = [n for n, _ in model.named_parameters() if component in n]
-        if matching_params:
-            print(f"Found {component} in parameters: {matching_params}")
-        else:
-            print(f"Component not found: {component}")
+    if not args.test_only:
+        print("\nChecking specific components:")
+        for component in [ "cls_head", "sida_fc1", "attention_layer", "text_hidden_fcs"]:
+            matching_params = [n for n, _ in model.named_parameters() if component in n]
+            if matching_params:
+                print(f"Found {component} in parameters: {matching_params}")
+            else:
+                print(f"Component not found: {component}")
     model.enable_input_require_grads()
     model.gradient_checkpointing_enable()
     model.get_model().initialize_vision_modules(model.get_model().config)
@@ -236,44 +242,64 @@ def main(args):
             ]
         ):
             p.requires_grad = True
-
-    print("Checking trainable parameters:")
-    total_params = 0
-    for n, p in model.named_parameters():
-        if p.requires_grad:
-            print(f"Trainable: {n} with {p.numel()} parameters")
-            total_params += p.numel()
-    print(f"Total trainable parameters: {total_params}")
+    if not args.test_only:
+        print("Checking trainable parameters:")
+        total_params = 0
+        for n, p in model.named_parameters():
+            if p.requires_grad:
+                print(f"Trainable: {n} with {p.numel()} parameters")
+                total_params += p.numel()
+        print(f"Total trainable parameters: {total_params}")
 
     world_size = torch.cuda.device_count()
     args.distributed = world_size > 1
-    train_dataset = CustomDataset(
-        base_image_dir=args.dataset_dir,  
-        tokenizer=tokenizer,
-        vision_tower=args.vision_tower,  
-        split="train", 
-        precision=args.precision,  
-        image_size=args.image_size, 
-
-    )
+    # train_dataset = CustomDataset(
+    #     base_image_dir=args.dataset_dir,
+    #     tokenizer=tokenizer,
+    #     vision_tower=args.vision_tower,
+    #     split="train",
+    #     precision=args.precision,
+    #     image_size=args.image_size,
+    #
+    # )
+    # print(f"\nInitializing datasets:")
+    # print(f"Training split size: {len(train_dataset)}")
     print(f"\nInitializing datasets:")
-    print(f"Training split size: {len(train_dataset)}")
+    if not args.test_only:
+        train_dataset = CustomDataset(
+            base_image_dir=args.dataset_dir,
+            tokenizer=tokenizer,
+            vision_tower=args.vision_tower,
+            split="train",
+            precision=args.precision,
+            image_size=args.image_size,
+            binary=args.binary,
+            real_glob=args.real_glob,
+            fake_glob=args.fake_glob,
+        )
+        print(f"Training split size: {len(train_dataset)}")
+    else:
+        train_dataset = None
+        print("Test-only mode: skipping train split.")
 
     if args.no_test == False:
         test_dataset = CustomDataset(
-            base_image_dir=args.dataset_dir, 
+            base_image_dir=args.dataset_dir,
             tokenizer=tokenizer,
-            vision_tower=args.vision_tower,  
-            split="test", 
-            precision=args.precision, 
-            image_size=args.image_size, 
-    )
-        print(
-            f"Training with {len(train_dataset)} examples and testing with {len(test_dataset)} examples."
+            vision_tower=args.vision_tower,
+            split="test",
+            precision=args.precision,
+            image_size=args.image_size,
+            binary=args.binary,
+            real_glob=args.real_glob,
+            fake_glob=args.fake_glob,
         )
+        train_count = len(train_dataset) if train_dataset is not None else 0
+        print(f"Training with {train_count} examples and testing with {len(test_dataset)} examples.")
     else:
         test_dataset = None
-        print(f"Training with {len(train_dataset)} examples.")
+        train_count = len(train_dataset) if train_dataset is not None else 0
+        print(f"Training with {train_count} examples.")
     ds_config = {
         "train_micro_batch_size_per_gpu": args.batch_size,
         "gradient_accumulation_steps": args.grad_accumulation_steps,
@@ -297,8 +323,8 @@ def main(args):
         },
         "fp16": {
             "enabled": args.precision == "fp16",
-            "loss_scale": 0,  
-            "initial_scale_power": 12,  
+            "loss_scale": 0,
+            "initial_scale_power": 12,
             "loss_scale_window": 1000,
             "min_loss_scale": 1,
             "hysteresis": 2
@@ -317,32 +343,54 @@ def main(args):
             "allgather_bucket_size": 5e8,
         },
     }
-    batch_sampler = BatchSampler(
-        dataset=train_dataset,
-        batch_size=ds_config["train_micro_batch_size_per_gpu"],
-        world_size=torch.cuda.device_count(),
-        rank=args.local_rank
-    )
+    # batch_sampler = BatchSampler(
+    #     dataset=train_dataset,
+    #     batch_size=ds_config["train_micro_batch_size_per_gpu"],
+    #     world_size=torch.cuda.device_count(),
+    #     rank=args.local_rank
+    # )
+    #
+    # train_loader = torch.utils.data.DataLoader(
+    #     train_dataset,
+    #     batch_sampler=batch_sampler,
+    #     num_workers=args.workers,
+    #     pin_memory=True,
+    #     collate_fn=partial(
+    #         collate_fn,
+    #         tokenizer=tokenizer,
+    #         conv_type=args.conv_type,
+    #         use_mm_start_end=args.use_mm_start_end,
+    #         local_rank=args.local_rank,
+    #         cls_token_idx=args.cls_token_idx,
+    #     ),
+    # )
+    if train_dataset is not None:
+        batch_sampler = BatchSampler(
+            dataset=train_dataset,
+            batch_size=ds_config["train_micro_batch_size_per_gpu"],
+            world_size=torch.cuda.device_count(),
+            rank=args.local_rank
+        )
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_sampler=batch_sampler,
+            num_workers=args.workers,
+            pin_memory=True,
+            collate_fn=partial(
+                collate_fn,
+                tokenizer=tokenizer,
+                conv_type=args.conv_type,
+                use_mm_start_end=args.use_mm_start_end,
+                local_rank=args.local_rank,
+                cls_token_idx=args.cls_token_idx,
+            ),
+        )
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_sampler=batch_sampler,
-        num_workers=args.workers,
-        pin_memory=True,
-        collate_fn=partial(
-            collate_fn,
-            tokenizer=tokenizer,
-            conv_type=args.conv_type,
-            use_mm_start_end=args.use_mm_start_end,
-            local_rank=args.local_rank,
-            cls_token_idx=args.cls_token_idx,
-        ),
-    )
     model_engine, optimizer, _, scheduler = deepspeed.initialize(
         model=model,
         model_parameters=model.parameters(),
         config=ds_config,
-        training_data=None, 
+        training_data=None,
     )
 
     if args.auto_resume and len(args.resume) == 0:
@@ -384,12 +432,14 @@ def main(args):
              ),
         )
 
-    train_iter = iter(train_loader)
+    # train_iter = iter(train_loader)
+    train_iter = iter(train_loader) if (train_dataset is not None) else None
 
-    best_acc, best_score, cur_ciou = 0.0, 0.0, 0.0
+    # best_acc, best_score, cur_ciou = 0.0, 0.0, 0.0
+    best_acc, best_score, cur_ciou, cur_acc = 0.0, 0.0, 0.0, 0.0
 
     if args.test_only:
-        acc, giou, ciou, _ = test(test_loader, model_engine, 0, writer, args) 
+        acc, giou, ciou, _ = test(test_loader, model_engine, 0, writer, args)
         exit()
 
     test_epochs = [1,3,5,7,10]
@@ -408,7 +458,7 @@ def main(args):
             train_iter,
             args,
         )
-        if (epoch + 1) in test_epochs: 
+        if (epoch + 1) in test_epochs:
             if args.local_rank == 0:
                 print(f"\nPerforming test after epoch {epoch + 1}")
 
@@ -554,7 +604,7 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
     model_engine.eval()
     correct = 0
     total = 0
-    num_classes = 3
+    num_classes = 2 if args.binary else 3
     confusion_matrix = torch.zeros(num_classes, num_classes, device='cuda')
     intersection_meter = AverageMeter("Intersec", ":6.3f", Summary.SUM)
     union_meter = AverageMeter("Union", ":6.3f", Summary.SUM)
@@ -606,12 +656,20 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
         probs = F.softmax(logits, dim=1)
         preds = torch.argmax(probs, dim=1)
         cls_labels = input_dict["cls_labels"]
+        # cls_labels = (cls_labels > 0).long()
+        # preds = (preds > 0).long()
+        if args.binary:
+            # collapse (full_synthetic,tampered)->fake
+            cls_labels = (cls_labels > 0).long()
+            preds = (preds > 0).long()
+
         correct += (preds == cls_labels).sum().item()
         total += cls_labels.size(0)
 
         for t, p in zip(cls_labels, preds):
             confusion_matrix[t.long(), p.long()] += 1
-        if cls_labels[0] == 2:
+        # if cls_labels[0] == 2:
+        if (not args.binary) and (cls_labels[0] == 2):
             pred_masks = output_dict["pred_masks"]
             masks_list = output_dict["gt_masks"][0].int()
             output_list = (pred_masks[0] > 0).int()
@@ -636,19 +694,33 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
     union_meter.all_reduce()
     acc_iou_meter.all_reduce()
 
+    # iou_class = intersection_meter.sum / (union_meter.sum + 1e-10)
+    # ciou = iou_class[1] if len(iou_class) > 1 else 0.0
+    # giou = acc_iou_meter.avg[1] if len(acc_iou_meter.avg) > 1 else 0.0
     iou_class = intersection_meter.sum / (union_meter.sum + 1e-10)
-    ciou = iou_class[1] if len(iou_class) > 1 else 0.0
-    giou = acc_iou_meter.avg[1] if len(acc_iou_meter.avg) > 1 else 0.0
+    # Handle both vector and scalar cases
+    if isinstance(iou_class, (np.ndarray, list)) and len(iou_class) > 1:
+        ciou = float(iou_class[1])
+    else:
+        ciou = 0.0
+
+    giou_avg = acc_iou_meter.avg
+    if isinstance(giou_avg, (np.ndarray, list)) and len(giou_avg) > 1:
+        giou = float(giou_avg[1])
+    else:
+        giou = 0.0
 
     accuracy = correct / total * 100.0
     confusion_matrix = confusion_matrix.cpu()
-    class_names = ['Real', 'Full Synthetic', 'Tampered']
+    # class_names = ['Real', 'Full Synthetic', 'Tampered']
+    # class_names = ['Real', 'Fake']
+    class_names = ['Real', 'Fake'] if args.binary else ['Real','Full Synthetic','Tampered']
     per_class_metrics = {}
     for i in range(num_classes):
-        tp = confusion_matrix[i, i]  
-        fp = confusion_matrix[:, i].sum() - tp  
-        fn = confusion_matrix[i, :].sum() - tp 
-        tn = confusion_matrix.sum() - (tp + fp + fn)  
+        tp = confusion_matrix[i, i]
+        fp = confusion_matrix[:, i].sum() - tp
+        fn = confusion_matrix[i, :].sum() - tp
+        tn = confusion_matrix.sum() - (tp + fp + fn)
 
         total_class_samples = confusion_matrix[i, :].sum()
 
@@ -665,11 +737,19 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
         }
 
 
-    pixel_correct = intersection_meter.sum[1]  
-    pixel_total = union_meter.sum[1]  
-    pixel_accuracy = pixel_correct / (pixel_total + 1e-10) * 100.0
+    # pixel_correct = intersection_meter.sum[1]
+    # pixel_total = union_meter.sum[1]
+    # pixel_accuracy = pixel_correct / (pixel_total + 1e-10) * 100.0
+    if isinstance(intersection_meter.sum, (np.ndarray, list)) and \
+       isinstance(union_meter.sum, (np.ndarray, list)) and \
+       len(intersection_meter.sum) > 1 and len(union_meter.sum) > 1:
+        pixel_correct = intersection_meter.sum[1]
+        pixel_total = union_meter.sum[1]
+        pixel_accuracy = pixel_correct / (pixel_total + 1e-10) * 100.0
+    else:
+        pixel_accuracy = 0.0
 
-    iou = ciou  
+    iou = ciou
     f1_score = 2 * (iou * accuracy / 100) / (iou + accuracy / 100 + 1e-10) if (iou + accuracy / 100) > 0 else 0.0
 
     avg_precision = np.mean([metrics['precision'] for metrics in per_class_metrics.values()])
@@ -710,16 +790,16 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
         print("\nConfusion Matrix:")
         print("Predicted ")
         print("Actual ")
-        print(f"{'':20}", end="")  
+        print(f"{'':20}", end="")
         for name in class_names:
-            print(f"{name:>12}", end="") 
-        print()  
+            print(f"{name:>12}", end="")
+        print()
 
         for i, class_name in enumerate(class_names):
-            print(f"{class_name:20}", end="") 
+            print(f"{class_name:20}", end="")
             for j in range(num_classes):
                 print(f"{confusion_matrix[i, j]:12.0f}", end="")
-            print()  
+            print()
 
     return accuracy, giou, ciou, per_class_metrics
 
