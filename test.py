@@ -4,6 +4,7 @@ import shutil
 import sys
 import time
 from functools import partial
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import deepspeed
 import numpy as np
@@ -23,7 +24,9 @@ from utils.utils import (DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN,
 import random
 import torch.nn.functional as F
 import warnings
+
 warnings.filterwarnings("ignore")
+
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description="SIDA Model Training")
@@ -57,19 +60,15 @@ def parse_args(args):
     parser.add_argument(
         "--batch_size", default=2, type=int, help="batch size per device per step"
     )
-    parser.add_argument(
-        "--grad_accumulation_steps",
-        default=10,
-        type=int,
-    )
+    parser.add_argument("--grad_accumulation_steps", default=10, type=int, )
     parser.add_argument("--test_batch_size", default=1, type=int)
     parser.add_argument("--workers", default=4, type=int)
     parser.add_argument("--lr", default=0.00001, type=float)
 
     parser.add_argument("--num_classes", type=int, default=3,
-                       help="Number of classes for classification in stage 1")
+                        help="Number of classes for classification in stage 1")
     parser.add_argument("--use_stage1_cls", action="store_true", default=True,
-                   help="Whether to use Stage 1 CLS token in Stage 2")
+                        help="Whether to use Stage 1 CLS token in Stage 2")
     parser.add_argument("--ce_loss_weight", default=1.0, type=float)
     parser.add_argument("--dice_loss_weight", default=1.0, type=float)
     parser.add_argument("--bce_loss_weight", default=1.0, type=float)
@@ -106,6 +105,8 @@ def parse_args(args):
                         help='Recursive glob for FAKE images, e.g. "/data/1_fake/**/*.png"')
 
     return parser.parse_args(args)
+
+
 def main(args):
     args = parse_args(args)
     deepspeed.init_distributed()
@@ -154,7 +155,7 @@ def main(args):
     elif args.precision == "fp16":
         torch_dtype = torch.half
     model = SIDAForCausalLM.from_pretrained(
-        args.version, torch_dtype=torch_dtype, low_cpu_mem_usage=True, **model_args
+        args.version, dtype=torch_dtype, low_cpu_mem_usage=True, **model_args
     )
 
     model.config.eos_token_id = tokenizer.eos_token_id
@@ -162,7 +163,7 @@ def main(args):
     model.config.pad_token_id = tokenizer.pad_token_id
     if not args.test_only:
         print("\nChecking specific components:")
-        for component in [ "cls_head", "sida_fc1", "attention_layer", "text_hidden_fcs"]:
+        for component in ["cls_head", "sida_fc1", "attention_layer", "text_hidden_fcs"]:
             matching_params = [n for n, _ in model.named_parameters() if component in n]
             if matching_params:
                 print(f"Found {component} in parameters: {matching_params}")
@@ -182,7 +183,6 @@ def main(args):
     for p in model.get_model().mm_projector.parameters():
         p.requires_grad = False
 
-
     conversation_lib.default_conversation = conversation_lib.conv_templates[
         args.conv_type
     ]
@@ -194,29 +194,30 @@ def main(args):
             lora_module_names = set()
             for name, module in model.named_modules():
                 if (
-                    isinstance(module, cls)
-                    and all(
-                        [
-                            x not in name
-                            for x in [
-                                "visual_model",
-                                "vision_tower",
-                                "mm_projector",
-                                "text_hidden_fcs",
-                                "cls_head",
-                                "sida_fc1",
-                                "attention_layer",
-                            ]
-                        ]
-                    )
-                    and any([x in name for x in lora_target_modules])
+                        isinstance(module, cls)
+                        and all(
+                    [
+                        x not in name
+                        for x in [
+                        "visual_model",
+                        "vision_tower",
+                        "mm_projector",
+                        "text_hidden_fcs",
+                        "cls_head",
+                        "sida_fc1",
+                        "attention_layer",
+                    ]
+                    ]
+                )
+                        and any([x in name for x in lora_target_modules])
                 ):
                     lora_module_names.add(name)
             return sorted(list(lora_module_names))
+
         lora_alpha = args.lora_alpha
         lora_dropout = args.lora_dropout
         lora_target_modules = find_linear_layers(
-                model, args.lora_target_modules.split(",")
+            model, args.lora_target_modules.split(",")
         )
         lora_config = LoraConfig(
             r=lora_r,
@@ -236,10 +237,11 @@ def main(args):
 
     for n, p in model.named_parameters():
         if any(
-            [
-                x in n
-                for x in ["embed_tokens", "mask_decoder", "text_hidden_fcs","cls_head", "sida_fc1","attention_layer"]
-            ]
+                [
+                    x in n
+                    for x in
+                    ["embed_tokens", "mask_decoder", "text_hidden_fcs", "cls_head", "sida_fc1", "attention_layer"]
+                ]
         ):
             p.requires_grad = True
     if not args.test_only:
@@ -394,7 +396,7 @@ def main(args):
     )
 
     if args.auto_resume and len(args.resume) == 0:
-        resume = os.path.join(args.log_dir,  "ckpt_model")
+        resume = os.path.join(args.log_dir, "ckpt_model")
         if os.path.exists(resume):
             args.resume = resume
 
@@ -403,7 +405,7 @@ def main(args):
         with open(os.path.join(args.resume, "latest"), "r") as f:
             ckpt_dir = f.readlines()[0].strip()
         args.start_epoch = (
-            int(ckpt_dir.replace("global_step", "")) // args.steps_per_epoch
+                int(ckpt_dir.replace("global_step", "")) // args.steps_per_epoch
         )
         print(
             "resume training from {}, start from epoch {}".format(
@@ -424,12 +426,12 @@ def main(args):
             num_workers=args.workers,
             pin_memory=True,
             collate_fn=partial(
-                 collate_fn,
-                 tokenizer=tokenizer,
-                 conv_type=args.conv_type,
-                 use_mm_start_end=args.use_mm_start_end,
-                 local_rank=args.local_rank,
-             ),
+                collate_fn,
+                tokenizer=tokenizer,
+                conv_type=args.conv_type,
+                use_mm_start_end=args.use_mm_start_end,
+                local_rank=args.local_rank,
+            ),
         )
 
     # train_iter = iter(train_loader)
@@ -442,7 +444,7 @@ def main(args):
         acc, giou, ciou, _ = test(test_loader, model_engine, 0, writer, args)
         exit()
 
-    test_epochs = [1,3,5,7,10]
+    test_epochs = [1, 3, 5, 7, 10]
     if args.local_rank == 0:
         print(f"\nTraining Configuration:")
         print(f"Total epochs: {args.epochs}")
@@ -479,11 +481,11 @@ def main(args):
                 save_dir = os.path.join(args.log_dir, "ckpt_model")
                 if args.local_rank == 0:
                     torch.save(
-                                {"epoch": epoch},
-                                os.path.join(
-                                    args.log_dir,
-                                    f"meta_log_acc{best_acc:.3f}_iou{best_score:.3f}.pth"
-                                ),
+                        {"epoch": epoch},
+                        os.path.join(
+                            args.log_dir,
+                            f"meta_log_acc{best_acc:.3f}_iou{best_score:.3f}.pth"
+                        ),
                     )
                     if os.path.exists(save_dir):
                         shutil.rmtree(save_dir)
@@ -503,14 +505,15 @@ def main(args):
             if args.local_rank == 0:
                 print(f"\nTraining completed. Final checkpoint saved to {save_dir}")
 
+
 def train(
-    train_loader,
-    model,
-    epoch,
-    scheduler,
-    writer,
-    train_iter,
-    args,
+        train_loader,
+        model,
+        epoch,
+        scheduler,
+        writer,
+        train_iter,
+        args,
 ):
     """Main training loop."""
     batch_time = AverageMeter("Time", ":6.3f")
@@ -598,7 +601,10 @@ def train(
                 writer.add_scalar("train/lr", curr_lr[0], global_step)
 
     return train_iter
+
+
 import random
+
 
 def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
     model_engine.eval()
@@ -714,7 +720,7 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
     confusion_matrix = confusion_matrix.cpu()
     # class_names = ['Real', 'Full Synthetic', 'Tampered']
     # class_names = ['Real', 'Fake']
-    class_names = ['Real', 'Fake'] if args.binary else ['Real','Full Synthetic','Tampered']
+    class_names = ['Real', 'Fake'] if args.binary else ['Real', 'Full Synthetic', 'Tampered']
     per_class_metrics = {}
     for i in range(num_classes):
         tp = confusion_matrix[i, i]
@@ -736,13 +742,12 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
             'f1': f1
         }
 
-
     # pixel_correct = intersection_meter.sum[1]
     # pixel_total = union_meter.sum[1]
     # pixel_accuracy = pixel_correct / (pixel_total + 1e-10) * 100.0
     if isinstance(intersection_meter.sum, (np.ndarray, list)) and \
-       isinstance(union_meter.sum, (np.ndarray, list)) and \
-       len(intersection_meter.sum) > 1 and len(union_meter.sum) > 1:
+            isinstance(union_meter.sum, (np.ndarray, list)) and \
+            len(intersection_meter.sum) > 1 and len(union_meter.sum) > 1:
         pixel_correct = intersection_meter.sum[1]
         pixel_total = union_meter.sum[1]
         pixel_accuracy = pixel_correct / (pixel_total + 1e-10) * 100.0
@@ -766,10 +771,10 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
         writer.add_scalar("test/f1_score", f1_score, epoch)
         writer.add_scalar("test/auc_approx", auc_approx, epoch)
         for class_name, metrics in per_class_metrics.items():
-         for metric_name, value in metrics.items():
-             writer.add_scalar(f"test/{class_name.lower().replace('/', '_')}_{metric_name}", value, epoch)
+            for metric_name, value in metrics.items():
+                writer.add_scalar(f"test/{class_name.lower().replace('/', '_')}_{metric_name}", value, epoch)
 
-        test_type = "Full" if sample_ratio is None else f"Sampled ({sample_ratio*100}%)"
+        test_type = "Full" if sample_ratio is None else f"Sampled ({sample_ratio * 100}%)"
         print(f"\n{test_type} test Results:")
         print(f"giou: {giou:.4f}, ciou: {ciou:.4f}")
         print(f"Classification Accuracy: {accuracy:.4f}%")
@@ -802,6 +807,7 @@ def test(test_loader, model_engine, epoch, writer, args, sample_ratio=None):
             print()
 
     return accuracy, giou, ciou, per_class_metrics
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

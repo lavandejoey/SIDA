@@ -1,6 +1,53 @@
 import random
 from torch.utils.data import Sampler
 
+from .SID_Set import FakePartsV2Dataset
+
+
+class BalancedBatchSampler(Sampler):
+    """
+    Simple class-balanced batch sampler compatible with Distributed. Mirrors utils.batch_sampler.BatchSampler.
+    """
+    def __init__(self, dataset: FakePartsV2Dataset, batch_size: int, world_size: int = 1, rank: int = 0):
+        super().__init__(dataset)
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.world_size = world_size
+        self.rank = rank
+
+        self.indices_by_class = {0: [], 1: []}
+        for idx in range(len(dataset)):
+            self.indices_by_class[int(dataset.cls_labels[idx])].append(idx)
+
+        # Keep originals for reset
+        self.original_indices = {cls: idxs.copy() for cls, idxs in self.indices_by_class.items()}
+
+    def __iter__(self):
+        self.indices_by_class = {cls: idxs.copy() for cls, idxs in self.original_indices.items()}
+        all_batches = []
+        for cls, indices in self.indices_by_class.items():
+            indices = list(indices)
+            import random as _r
+            _r.shuffle(indices)
+            for i in range(0, len(indices) - self.batch_size + 1, self.batch_size):
+                all_batches.append(indices[i:i+self.batch_size])
+        import random as _r
+        _r.shuffle(all_batches)
+
+        if self.world_size > 1:
+            num_batches = len(all_batches)
+            per_rank = num_batches // self.world_size
+            start = self.rank * per_rank
+            end = start + per_rank
+            all_batches = all_batches[start:end]
+        return iter(all_batches)
+
+    def __len__(self):
+        total = sum(len(idxs) // self.batch_size for idxs in self.indices_by_class.values())
+        if self.world_size > 1:
+            return total // self.world_size
+        return total
+
 class BatchSampler(Sampler):
     def __init__(self, dataset, batch_size, world_size=1, rank=0):
         super().__init__(dataset)
@@ -12,8 +59,7 @@ class BatchSampler(Sampler):
         # Group indices by class
         self.indices_by_class = {
             0: [],  # real
-            1: [],  # full synthetic
-            2: []   # tampered
+            1: [],  # fake
         }
         
         # Populate indices_by_class

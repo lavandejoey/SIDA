@@ -151,7 +151,7 @@ def main(args):
         torch_dtype = torch.half
 
     model = SIDAForCausalLM.from_pretrained(
-        args.version, torch_dtype=torch_dtype, low_cpu_mem_usage=True, **model_args
+        args.version, dtype=torch_dtype, low_cpu_mem_usage=True, **model_args
     )
  
     model.config.eos_token_id = tokenizer.eos_token_id

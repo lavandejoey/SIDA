@@ -156,7 +156,7 @@ def load_pretrained_model(
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             model = AutoModelForCausalLM.from_pretrained(
                 model_base,
-                torch_dtype=torch.float16,
+                dtype=torch.float16,
                 low_cpu_mem_usage=True,
                 device_map="auto",
             )

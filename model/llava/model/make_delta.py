@@ -13,13 +13,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 def make_delta(base_model_path, target_model_path, delta_path, hub_repo_id):
     print("Loading base model")
     base = AutoModelForCausalLM.from_pretrained(
-        base_model_path, torch_dtype=torch.float16, low_cpu_mem_usage=True
+        base_model_path, dtype=torch.float16, low_cpu_mem_usage=True
     )
 
     print("Loading target model")
     auto_upgrade(target_model_path)
     target = AutoModelForCausalLM.from_pretrained(
-        target_model_path, torch_dtype=torch.float16, low_cpu_mem_usage=True
+        target_model_path, dtype=torch.float16, low_cpu_mem_usage=True
     )
 
     print("Calculating delta")
