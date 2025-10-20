@@ -33,6 +33,7 @@ VIDEOS_DIR = Path("/projects/hi-paris/DeepFakeDataset/FakeParts_data_addition_vi
 FRAMES_ROOT = Path("/projects/hi-paris/DeepFakeDataset/FakeParts_data_addition_frames_only")
 VID_EXTS: Tuple[str, ...] = (".mp4", ".avi", ".mkv", ".mov")
 IMG_EXTS: Tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp", ".tiff")
+EXCLUDE = ["Annotations"]  # keywords for folder / file to be excluded during indexing
 
 
 class Subset(str, Enum):
@@ -131,6 +132,8 @@ def index_list(root_path: Path, file_exts: Tuple[str, ...]) -> List[IndexEntry]:
     entries: List[IndexEntry] = []
     root_path = Path(root_path)
     for dirpath, _, filenames in tqdm(os.walk(root_path), desc=f"Indexing {root_path}"):
+        if any(excl in dirpath for excl in EXCLUDE):  # skip excluded folders
+            continue
         dirpath = Path(dirpath)
         for fn in filenames:
             if fn.lower().endswith(file_exts):
