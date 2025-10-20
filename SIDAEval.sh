@@ -10,7 +10,8 @@ mkdir -p "${result_dir}"
 #data_root="/projects/hi-paris/DeepFakeDataset/FakeParts_data_addition_frames_only"
 data_root="/home/infres/ziyliu-24/data/FakeParts2DataMockBin"
 #data_root="/home/infres/ziyliu-24/data/FakeParts2DataMock"
-model_path="/home/infres/ziyliu-24/.cache/huggingface/hub/models--saberzl--SIDA-13B/snapshots/d62e8c3698687389318330fb5b38dad5f32308e0"
+#model_path="/home/infres/ziyliu-24/.cache/huggingface/hub/models--saberzl--SIDA-13B/snapshots/d62e8c3698687389318330fb5b38dad5f32308e0"
+model_path="./ck/SIDA-13B"
 conv="llava_v1" # "llava_v1", "llava_llama_2"
 
 source /home/infres/ziyliu-24/miniconda3/etc/profile.d/conda.sh
