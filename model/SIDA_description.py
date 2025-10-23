@@ -202,12 +202,12 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
         cls_token_mask = (input_ids[:,1:] == self.cls_token_idx)
         cls_token_mask = torch.cat([
             cls_token_mask,
-            torch.zeros((cls_token_mask.shape[0], 1)).bool().cuda()
+            torch.zeros((cls_token_mask.shape[0], 1), device=next(self.parameters()).device, dtype=torch.bool)
             ], 
             dim=1)
         cls_token_mask =  torch.cat(
             [
-            torch.zeros((cls_token_mask.shape[0], 255)).bool().cuda(),  
+            torch.zeros((cls_token_mask.shape[0], 255), device=next(self.parameters()).device, dtype=torch.bool),  
             cls_token_mask,
             ],
                 dim=1,
@@ -264,7 +264,7 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
         last_hidden_state_cls = self.model.cls_head[0](output_hidden_states[-1]) 
         cls_result = last_hidden_state_cls[cls_token_mask]
         if inference:
-            ce_loss = torch.tensor(0.0).cuda()
+            ce_loss = torch.tensor(0.0, device=next(self.parameters()).device)
         else:
             ce_loss =output.loss
 
@@ -286,7 +286,7 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
             seg_token_counts = seg_token_mask.int().sum(-1)  # [bs, ]
             seg_token_offset = seg_token_counts.cumsum(-1)
             seg_token_offset = torch.cat(
-            [torch.zeros(1).long().cuda(), seg_token_offset], dim=0
+            [torch.zeros(1, device=next(self.parameters()).device, dtype=torch.long), seg_token_offset], dim=0
             )
             try:
                 seg_token_offset = seg_token_offset[offset]
@@ -430,7 +430,7 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
             # Get classification token mask
             cls_token_mask = (output_ids[:, 1:] == self.cls_token_idx)
             cls_token_mask = torch.cat([
-                torch.zeros((cls_token_mask.shape[0], 255)).bool().cuda(),
+                torch.zeros((cls_token_mask.shape[0], 255), device=next(self.parameters()).device, dtype=torch.bool),
                 cls_token_mask
             ], dim=1)
 
@@ -454,7 +454,7 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
                     # Process segmentation tokens
                     seg_token_mask = (output_ids[:, 1:] == self.seg_token_idx)
                     seg_token_mask = torch.cat([
-                        torch.zeros((seg_token_mask.shape[0], 255)).bool().cuda(),
+                        torch.zeros((seg_token_mask.shape[0], 255), device=next(self.parameters()).device, dtype=torch.bool),
                         seg_token_mask
                     ], dim=1)
 
@@ -469,7 +469,7 @@ class SIDAForCausalLM(LlavaLlamaForCausalLM):
                     seg_token_counts = seg_token_mask.int().sum(-1)
                     seg_token_offset = seg_token_counts.cumsum(-1)
                     seg_token_offset = torch.cat(
-                        [torch.zeros(1).long().cuda(), seg_token_offset], dim=0
+                        [torch.zeros(1, device=next(self.parameters()).device, dtype=torch.long), seg_token_offset], dim=0
                     )
 
                     pred_embeddings_ = []

@@ -60,8 +60,12 @@ def parse_args(args):
 
 
 def main(args):
+    local_rank = int(os.getenv("LOCAL_RANK", "0"))
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
     args = parse_args(args)
     deepspeed.init_distributed()
+
     # Create model
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         args.version,
@@ -208,6 +212,16 @@ def validate(val_loader, model_engine, args, sample_ratio=None):
     import tqdm
 
     for batch_idx, input_dict in enumerate(tqdm.tqdm(val_loader)):
+        
+        dev = getattr(model_engine, 'device', next(model_engine.parameters()).device)
+        # Ensure all tensors are on the same device
+        for k, v in list(input_dict.items()):
+            if torch.is_tensor(v):
+                input_dict[k] = v.to(dev, non_blocking=True)
+            elif isinstance(v, (list, tuple)) and v and torch.is_tensor(v[0]):
+                input_dict[k] = [t.to(dev, non_blocking=True) for t in v]
+
+
         if sample_indices is not None and batch_idx not in sample_indices:
             continue
 
