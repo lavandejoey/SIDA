@@ -8,7 +8,7 @@ from model.segment_anything.utils.transforms import ResizeLongestSide
 from pathlib import Path
 from pycocotools import mask
 from transformers import CLIPImageProcessor
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Set   
 
 from .DataUtils import index_dataframe, IMG_EXTS
 from .utils import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IMAGE_TOKEN
@@ -164,7 +164,8 @@ class FakePartsV2Dataset(torch.utils.data.Dataset):
     ignore_label = 255
 
     def __init__(self, base_image_dir: Path, tokenizer, vision_tower: str, split: str = "",
-                 precision: str = "fp32", image_size: int = 224, binary: bool = True, ) -> None:
+                 precision: str = "fp32", image_size: int = 224, binary: bool = True, exclude_sample_ids: Optional[Set[str]] = None,
+ ) -> None:
         super().__init__()
         self.base_image_dir = base_image_dir
         self.split = split
@@ -179,11 +180,20 @@ class FakePartsV2Dataset(torch.utils.data.Dataset):
 
         # Build the dataframe index once
         self.df = index_dataframe(root_path=base_image_dir, file_exts=IMG_EXTS)
+        if exclude_sample_ids:
+            self.df = self.df[~self.df["rel_path"].isin(exclude_sample_ids)].reset_index(drop=True)
         # Keep only frames/images; videos could be supported later if needed
         # but we keep both since evaluation may be frame- or video-mode.
         # Labels are provided by DataUtils (0=real, 1=fake)
+
         if len(self.df) == 0:
-            raise RuntimeError(f"No media files found under: {base_image_dir}")
+            if exclude_sample_ids:
+                self.abs_paths = []
+                self.cls_labels = []
+                self.meta_by_abs = {}
+            else:
+                raise RuntimeError(f"No media files found under: {base_image_dir}")
+
 
         # Store core arrays for speed
         self.abs_paths: List[str] = self.df["abs_path"].tolist()
